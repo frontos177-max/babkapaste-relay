@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>babkapaste radar</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f1016;display:flex;flex-direction:column;align-items:center;font-family:monospace;color:#b9bed2;height:100vh}
+  h1{margin:10px 0;font-size:13px;letter-spacing:3px;color:#8c91c8;text-transform:uppercase}
+  canvas{border:1px solid #26263a;background:#0a0b10}
+  #status{font-size:11px;margin:5px;color:#555}
+  #info{font-size:10px;color:#444;margin-bottom:4px}
+</style>
+</head>
+<body>
+<h1>babkapaste // radar</h1>
+<div id="status">connecting...</div>
+<canvas id="c" width="600" height="600"></canvas>
+<div id="info">scroll to zoom &nbsp;|&nbsp; drag to pan</div>
+<script>
+const canvas = document.getElementById('c')
+const ctx = canvas.getContext('2d')
+const statusEl = document.getElementById('status')
+const W = canvas.width, H = canvas.height
+
+let state = null
+let scale = 0.15
+let panX = 0, panY = 0
+let dragging = false, lastMX = 0, lastMY = 0
+
+// zoom
+canvas.addEventListener('wheel', e => {
+  e.preventDefault()
+  scale *= e.deltaY < 0 ? 1.1 : 0.9
+  scale = Math.max(0.02, Math.min(2, scale))
+}, { passive: false })
+
+// pan
+canvas.addEventListener('mousedown', e => { dragging = true; lastMX = e.clientX; lastMY = e.clientY })
+canvas.addEventListener('mouseup', () => dragging = false)
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return
+  panX += e.clientX - lastMX
+  panY += e.clientY - lastMY
+  lastMX = e.clientX; lastMY = e.clientY
+})
+
+function toScreen(x, y, ox, oy) {
+  return [
+    W / 2 + (x - ox) * scale + panX,
+    H / 2 - (y - oy) * scale + panY
+  ]
+}
+
+function arrow(x, y, yaw, color, sz) {
+  const r = (yaw - 90) * Math.PI / 180
+  ctx.save(); ctx.translate(x, y); ctx.rotate(r)
+  ctx.beginPath()
+  ctx.moveTo(0, -sz); ctx.lineTo(sz * .6, sz * .6)
+  ctx.lineTo(0, sz * .2); ctx.lineTo(-sz * .6, sz * .6)
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill()
+  ctx.restore()
+}
+
+function dot(x, y, color, r) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fillStyle = color; ctx.fill()
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H)
+
+  // grid
+  ctx.strokeStyle = '#1a1b26'; ctx.lineWidth = 1
+  for (let i = 0; i < W; i += 50) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke()
+  }
+
+  if (state) {
+    const ox = state.local ? state.local.x : 0
+    const oy = state.local ? state.local.y : 0
+
+    if (state.players) {
+      for (const p of state.players) {
+        const [sx, sy] = toScreen(p.x, p.y, ox, oy)
+        if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue
+        const col = p.enemy ? '#e05050' : '#50c878'
+        dot(sx, sy, col, 5)
+        ctx.fillStyle = col; ctx.font = '10px monospace'
+        ctx.fillText(p.name || '', sx + 7, sy - 4)
+        ctx.fillStyle = '#888'
+        ctx.fillText(p.hp + 'hp', sx + 7, sy + 7)
+        if (p.weapon) {
+          ctx.fillStyle = '#555'
+          ctx.fillText(p.weapon, sx + 7, sy + 18)
+        }
+      }
+    }
+
+    if (state.local) arrow(W / 2 + panX, H / 2 + panY, state.local.yaw, '#8c91ff', 8)
+  }
+
+  requestAnimationFrame(render)
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const ws = new WebSocket(`${proto}//${location.host}`)
+  ws.onopen = () => statusEl.textContent = 'connected'
+  ws.onclose = () => { statusEl.textContent = 'waiting for cheat...'; setTimeout(connect, 3000) }
+  ws.onerror = () => ws.close()
+  ws.onmessage = e => { try { state = JSON.parse(e.data) } catch (_) {} }
+}
+
+connect()
+render()
+</script>
+</body>
+</html>
