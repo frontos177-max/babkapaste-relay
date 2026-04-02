@@ -53,7 +53,7 @@ function toScreen(x, y, ox, oy) {
 }
 
 function arrow(x, y, yaw, color, sz) {
-  const r = (yaw - 90) * Math.PI / 180
+  const r = (-yaw - 90) * Math.PI / 180
   ctx.save(); ctx.translate(x, y); ctx.rotate(r)
   ctx.beginPath()
   ctx.moveTo(0, -sz); ctx.lineTo(sz * .6, sz * .6)
