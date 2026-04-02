@@ -110,7 +110,15 @@ function connect() {
   ws.onopen = () => statusEl.textContent = 'connected'
   ws.onclose = () => { statusEl.textContent = 'waiting for cheat...'; setTimeout(connect, 3000) }
   ws.onerror = () => ws.close()
-  ws.onmessage = e => { try { state = JSON.parse(e.data) } catch (_) {} }
+  ws.onmessage = e => {
+    try {
+      if (e.data instanceof Blob) {
+        e.data.text().then(t => { try { state = JSON.parse(t) } catch(_){} })
+      } else {
+        state = JSON.parse(e.data)
+      }
+    } catch(_){}
+  }
 }
 
 connect()
